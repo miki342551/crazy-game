@@ -18,6 +18,10 @@ export class NetworkManager {
     // Initialize Peer
     initialize(onId) {
         this.peer = new Peer({
+            host: 'crazy-game-production.up.railway.app',
+            port: 443,
+            path: '/peerjs',
+            secure: true,
             debug: 3,
             config: {
                 iceServers: [
@@ -27,24 +31,14 @@ export class NetworkManager {
                     { urls: 'stun:stun2.l.google.com:19302' },
                     { urls: 'stun:stun3.l.google.com:19302' },
                     { urls: 'stun:stun4.l.google.com:19302' },
-                    // Metered TURN servers (more reliable than OpenRelay)
+                    // Metered TURN servers
                     {
                         urls: 'turn:a.relay.metered.ca:80',
                         username: 'openrelayproject',
                         credential: 'openrelayproject'
                     },
                     {
-                        urls: 'turn:a.relay.metered.ca:80?transport=tcp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    {
                         urls: 'turn:a.relay.metered.ca:443',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    {
-                        urls: 'turn:a.relay.metered.ca:443?transport=tcp',
                         username: 'openrelayproject',
                         credential: 'openrelayproject'
                     }
