@@ -17,20 +17,19 @@ export class NetworkManager {
 
     // Initialize Peer
     initialize(onId) {
+        // Let PeerJS choose the best available server automatically
         this.peer = new Peer({
-            host: '0.peerjs.com',
-            path: '/',
-            debug: 2,
-            secure: true, // Required for HTTPS (Vercel/Netlify)
-            port: 443,
+            debug: 3, // Maximum debug level
             config: {
                 iceServers: [
+                    // Multiple STUN servers for redundancy
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
                     { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' },
                     { urls: 'stun:global.stun.twilio.com:3478' },
-                    // Add TURN servers for NAT traversal (free OpenRelay)
+                    // OpenRelay TURN servers (free, reliable)
                     {
                         urls: 'turn:openrelay.metered.ca:80',
                         username: 'openrelayproject',
@@ -46,7 +45,9 @@ export class NetworkManager {
                         username: 'openrelayproject',
                         credential: 'openrelayproject'
                     }
-                ]
+                ],
+                iceTransportPolicy: 'all', // Try all connection methods
+                iceCandidatePoolSize: 10 // Pre-gather candidates
             }
         });
 
