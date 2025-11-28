@@ -1,7 +1,6 @@
-const express = require('express');
-const { ExpressPeerServer } = require('peer');
-const cors = require('cors');
-const path = require('path');
+import express from 'express';
+import { ExpressPeerServer } from 'peer';
+import cors from 'cors';
 
 const app = express();
 
