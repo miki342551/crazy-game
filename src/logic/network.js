@@ -17,41 +17,37 @@ export class NetworkManager {
 
     // Initialize Peer
     initialize(onId) {
-        // Use a more reliable public PeerJS cloud server
+        // Use forced relay mode for guaranteed cross-network connectivity
         this.peer = new Peer({
-            host: 'peerjs-server.com',
-            port: 443,
-            path: '/',
-            secure: true,
-            debug: 3, // Maximum debug level
+            debug: 3,
             config: {
                 iceServers: [
-                    // Multiple STUN servers for redundancy
+                    // STUN servers
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' },
-                    { urls: 'stun:stun3.l.google.com:19302' },
-                    { urls: 'stun:stun4.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' },
-                    // OpenRelay TURN servers (free, reliable)
+                    // Metered TURN servers (free tier, very reliable)
                     {
-                        urls: 'turn:openrelay.metered.ca:80',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
+                        urls: 'turn:global.relay.metered.ca:80',
+                        username: 'ce932c4e1d64d6387fb936fd',
+                        credential: 'wXmPfDDQs6+BE0sb'
                     },
                     {
-                        urls: 'turn:openrelay.metered.ca:443',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
+                        urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+                        username: 'ce932c4e1d64d6387fb936fd',
+                        credential: 'wXmPfDDQs6+BE0sb'
                     },
                     {
-                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
+                        urls: 'turn:global.relay.metered.ca:443',
+                        username: 'ce932c4e1d64d6387fb936fd',
+                        credential: 'wXmPfDDQs6+BE0sb'
+                    },
+                    {
+                        urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+                        username: 'ce932c4e1d64d6387fb936fd',
+                        credential: 'wXmPfDDQs6+BE0sb'
                     }
                 ],
-                iceTransportPolicy: 'all', // Try all connection methods
-                iceCandidatePoolSize: 10 // Pre-gather candidates
+                iceTransportPolicy: 'relay' // Force TURN relay for guaranteed connectivity
             }
         });
 
