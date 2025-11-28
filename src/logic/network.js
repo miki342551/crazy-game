@@ -17,8 +17,12 @@ export class NetworkManager {
 
     // Initialize Peer
     initialize(onId) {
-        // Let PeerJS choose the best available server automatically
+        // Use a more reliable public PeerJS cloud server
         this.peer = new Peer({
+            host: 'peerjs-server.com',
+            port: 443,
+            path: '/',
+            secure: true,
             debug: 3, // Maximum debug level
             config: {
                 iceServers: [
