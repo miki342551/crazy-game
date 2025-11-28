@@ -18,8 +18,10 @@ export class NetworkManager {
     // Initialize Peer
     initialize(onId) {
         this.peer = new Peer({
+            host: '0.peerjs.com',
+            path: '/',
             debug: 2,
-            secure: true, // Required for HTTPS (ngrok)
+            secure: true, // Required for HTTPS (Vercel/Netlify)
             port: 443,
             config: {
                 iceServers: [
@@ -99,7 +101,7 @@ export class NetworkManager {
                             alert('Connection failed: Could not reach host.\n\nPossible reasons:\n- Host ID is incorrect\n- Host is offline\n- Network/firewall blocking connection\n\nTry refreshing and hosting again.');
                         }
                     }
-                }, 5000); // 5 second timeout per attempt
+                }, 10000); // 10 second timeout per attempt
 
                 conn.on('open', () => {
                     clearTimeout(connectionTimeout);
