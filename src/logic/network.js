@@ -41,8 +41,10 @@ export class NetworkManager {
                         credential: 'openrelayproject'
                     }
                 ],
-                iceCandidatePoolSize: 10
-            }
+                iceCandidatePoolSize: 10,
+                iceTransportPolicy: 'all' // Allow both direct and relay connections
+            },
+            serialization: 'json' // Ensure compatibility across devices
         });
 
         this.peer.on('open', (id) => {
