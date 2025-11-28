@@ -17,37 +17,31 @@ export class NetworkManager {
 
     // Initialize Peer
     initialize(onId) {
-        // Use forced relay mode for guaranteed cross-network connectivity
         this.peer = new Peer({
             debug: 3,
             config: {
                 iceServers: [
                     // STUN servers
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    // Metered TURN servers (free tier, very reliable)
+                    { urls: 'stun:global.stun.twilio.com:3478' },
+                    // Google's public STUN/TURN (limited but reliable)
                     {
-                        urls: 'turn:global.relay.metered.ca:80',
-                        username: 'ce932c4e1d64d6387fb936fd',
-                        credential: 'wXmPfDDQs6+BE0sb'
+                        urls: 'turn:openrelay.metered.ca:80',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
                     },
                     {
-                        urls: 'turn:global.relay.metered.ca:80?transport=tcp',
-                        username: 'ce932c4e1d64d6387fb936fd',
-                        credential: 'wXmPfDDQs6+BE0sb'
+                        urls: 'turn:openrelay.metered.ca:443',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
                     },
                     {
-                        urls: 'turn:global.relay.metered.ca:443',
-                        username: 'ce932c4e1d64d6387fb936fd',
-                        credential: 'wXmPfDDQs6+BE0sb'
-                    },
-                    {
-                        urls: 'turns:global.relay.metered.ca:443?transport=tcp',
-                        username: 'ce932c4e1d64d6387fb936fd',
-                        credential: 'wXmPfDDQs6+BE0sb'
+                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
                     }
                 ],
-                iceTransportPolicy: 'relay' // Force TURN relay for guaranteed connectivity
+                iceCandidatePoolSize: 10
             }
         });
 
