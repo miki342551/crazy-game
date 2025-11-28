@@ -1,7 +1,11 @@
 const express = require('express');
 const { ExpressPeerServer } = require('peer');
+const cors = require('cors');
 
 const app = express();
+
+// Enable CORS for all origins (allows cross-network play)
+app.use(cors());
 
 const server = app.listen(process.env.PORT || 3000);
 
