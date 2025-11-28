@@ -83,7 +83,7 @@ export class NetworkManager {
 
             const connectWithRetry = () => {
                 const conn = this.peer.connect(hostId, {
-                    reliable: false, // Use UDP for better performance on mobile networks
+                    reliable: true, // TCP mode is more reliable for cross-network
                     serialization: 'json'
                 });
 
