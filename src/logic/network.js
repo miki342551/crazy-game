@@ -21,10 +21,13 @@ export class NetworkManager {
             debug: 3,
             config: {
                 iceServers: [
-                    // STUN servers
+                    // Standard Google STUN
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' },
-                    // Google's public STUN/TURN (limited but reliable)
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' },
+                    // OpenRelay TURN (Free & Reliable)
                     {
                         urls: 'turn:openrelay.metered.ca:80',
                         username: 'openrelayproject',
@@ -42,9 +45,9 @@ export class NetworkManager {
                     }
                 ],
                 iceCandidatePoolSize: 10,
-                iceTransportPolicy: 'all' // Allow both direct and relay connections
+                iceTransportPolicy: 'all'
             },
-            serialization: 'json' // Ensure compatibility across devices
+            serialization: 'json'
         });
 
         this.peer.on('open', (id) => {
@@ -80,7 +83,8 @@ export class NetworkManager {
 
             const connectWithRetry = () => {
                 const conn = this.peer.connect(hostId, {
-                    reliable: true
+                    reliable: false, // Use UDP for better performance on mobile networks
+                    serialization: 'json'
                 });
 
                 // Set a timeout for connection
