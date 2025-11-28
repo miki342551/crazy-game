@@ -18,7 +18,7 @@ export class NetworkManager {
     // Initialize Peer
     initialize(onId) {
         this.peer = new Peer({
-            host: 'crazy-game-production.up.railway.app',
+            host: 'crazy-game-production-f0e7.up.railway.app',
             port: 443,
             path: '/peerjs',
             secure: true,
