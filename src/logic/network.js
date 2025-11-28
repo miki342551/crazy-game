@@ -21,25 +21,30 @@ export class NetworkManager {
             debug: 3,
             config: {
                 iceServers: [
-                    // Standard Google STUN
+                    // Google STUN servers
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
                     { urls: 'stun:stun2.l.google.com:19302' },
                     { urls: 'stun:stun3.l.google.com:19302' },
                     { urls: 'stun:stun4.l.google.com:19302' },
-                    // OpenRelay TURN (Free & Reliable)
+                    // Metered TURN servers (more reliable than OpenRelay)
                     {
-                        urls: 'turn:openrelay.metered.ca:80',
+                        urls: 'turn:a.relay.metered.ca:80',
                         username: 'openrelayproject',
                         credential: 'openrelayproject'
                     },
                     {
-                        urls: 'turn:openrelay.metered.ca:443',
+                        urls: 'turn:a.relay.metered.ca:80?transport=tcp',
                         username: 'openrelayproject',
                         credential: 'openrelayproject'
                     },
                     {
-                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                        urls: 'turn:a.relay.metered.ca:443',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                    {
+                        urls: 'turn:a.relay.metered.ca:443?transport=tcp',
                         username: 'openrelayproject',
                         credential: 'openrelayproject'
                     }
