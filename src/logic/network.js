@@ -25,13 +25,13 @@ export class NetworkManager {
         this.roomCode = this.generateRoomCode();
 
         try {
-            // Create room in database
+            // Create room in database with WAITING status
             const { data, error } = await supabase
                 .from('game_rooms')
                 .insert([
                     {
                         room_code: this.roomCode,
-                        game_state: {}
+                        game_state: { status: 'WAITING' }
                     }
                 ])
                 .select()
@@ -75,6 +75,9 @@ export class NetworkManager {
             // Subscribe to room updates
             this.subscribeToRoom();
 
+            // Notify host that we connected
+            await this.broadcast({ status: 'CONNECTED' });
+
             if (onConnected) onConnected();
             if (this.callbacks.onConnectedToHost) this.callbacks.onConnectedToHost();
         } catch (error) {
@@ -96,9 +99,18 @@ export class NetworkManager {
                     filter: `room_code=eq.${this.roomCode}`
                 },
                 (payload) => {
-                    console.log('📨 Received update:', payload.new.game_state);
+                    const newState = payload.new.game_state;
+                    console.log('📨 Received update:', newState);
+
+                    // Handle connection handshake
+                    if (this.isHost && newState?.status === 'CONNECTED') {
+                        console.log('Guest connected! Triggering onPeerConnect...');
+                        if (this.callbacks.onPeerConnect) this.callbacks.onPeerConnect('Guest');
+                        return;
+                    }
+
                     if (this.callbacks.onData) {
-                        this.callbacks.onData(payload.new.game_state, 'NETWORK');
+                        this.callbacks.onData(newState, 'NETWORK');
                     }
                 }
             )
