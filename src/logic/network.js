@@ -75,9 +75,6 @@ export class NetworkManager {
             // Subscribe to room updates
             this.subscribeToRoom();
 
-            // Notify host that we connected
-            await this.broadcast({ status: 'CONNECTED' });
-
             if (onConnected) onConnected();
             if (this.callbacks.onConnectedToHost) this.callbacks.onConnectedToHost();
         } catch (error) {
@@ -86,53 +83,70 @@ export class NetworkManager {
         }
     }
 
-    // Subscribe to room updates
+    // Subscribe to room updates (Broadcast Mode)
     subscribeToRoom() {
         this.channel = supabase
-            .channel(`room:${this.roomCode}`)
+            .channel(`room:${this.roomCode}`, {
+                config: {
+                    broadcast: { self: false } // Don't receive our own messages
+                }
+            })
             .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'game_rooms',
-                    filter: `room_code=eq.${this.roomCode}`
-                },
+                'broadcast',
+                { event: 'game_message' },
                 (payload) => {
-                    const newState = payload.new.game_state;
-                    console.log('📨 Received update:', newState);
+                    const msg = payload.payload;
+                    console.log('⚡ Received broadcast:', msg.type);
 
-                    // Handle connection handshake
-                    if (this.isHost && newState?.status === 'CONNECTED') {
-                        console.log('Guest connected! Triggering onPeerConnect...');
+                    // Handle Handshake: Guest asks for state, Host sends it
+                    if (this.isHost && msg.type === 'JOIN_REQUEST') {
+                        console.log('Guest requested join. Sending full state...');
                         if (this.callbacks.onPeerConnect) this.callbacks.onPeerConnect('Guest');
+                        // We rely on App.jsx to trigger the state broadcast after onPeerConnect
+                        // But we can also force a sync if we have the latest state stored locally?
+                        // App.jsx will see onPeerConnect and likely broadcast.
                         return;
                     }
 
+                    // Handle Handshake: Guest receives state
+                    if (!this.isHost && msg.type === 'STATE_UPDATE') {
+                        // If we were waiting for connection, this confirms it
+                        if (this.callbacks.onConnectedToHost) {
+                            this.callbacks.onConnectedToHost();
+                            // Clear callback so we don't trigger it again
+                            this.callbacks.onConnectedToHost = null;
+                        }
+                    }
+
                     if (this.callbacks.onData) {
-                        this.callbacks.onData(newState, 'NETWORK');
+                        this.callbacks.onData(msg, 'NETWORK');
                     }
                 }
             )
             .subscribe((status) => {
                 console.log('Subscription status:', status);
+                if (status === 'SUBSCRIBED') {
+                    // If we are joining, ask for state
+                    if (!this.isHost) {
+                        this.sendBroadcast({ type: 'JOIN_REQUEST' });
+                    }
+                }
             });
     }
 
-    // Broadcast game state
+    // Broadcast game state (Fast Ephemeral Mode)
     async broadcast(data) {
-        if (!this.roomCode) return;
+        if (!this.roomCode || !this.channel) return;
+        this.sendBroadcast(data);
+    }
 
+    async sendBroadcast(msg) {
         try {
-            const { error } = await supabase
-                .from('game_rooms')
-                .update({
-                    game_state: data,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('room_code', this.roomCode);
-
-            if (error) throw error;
+            await this.channel.send({
+                type: 'broadcast',
+                event: 'game_message',
+                payload: msg
+            });
         } catch (error) {
             console.error('❌ Error broadcasting:', error);
         }
