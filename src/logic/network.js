@@ -1,191 +1,140 @@
-import Peer from 'peerjs';
+import { supabase } from '../lib/supabase';
 
 export class NetworkManager {
     constructor() {
-        this.peer = null;
-        this.connections = []; // List of connections (for Host)
-        this.hostConn = null;  // Connection to Host (for Peer)
-        this.myId = null;
+        this.roomCode = null;
+        this.roomId = null;
+        this.channel = null;
         this.isHost = false;
         this.callbacks = {
             onData: () => { },
-            onPeerConnect: () => { }, // When a peer connects to us
+            onPeerConnect: () => { },
             onPeerDisconnect: () => { },
-            onConnectedToHost: () => { }, // When we connect to host
+            onConnectedToHost: () => { },
         };
     }
 
-    // Initialize Peer
-    initialize(onId) {
-        this.peer = new Peer({
-            debug: 3,
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' },
-                    {
-                        urls: 'turn:a.relay.metered.ca:80',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    {
-                        urls: 'turn:a.relay.metered.ca:443',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    }
-                ],
-                iceCandidatePoolSize: 10,
-                iceTransportPolicy: 'all'
-            },
-            serialization: 'json'
-        });
-
-        this.peer.on('open', (id) => {
-            this.myId = id;
-            console.log('✅ Connected to PeerJS server. My ID:', id);
-            if (onId) onId(id);
-        });
-
-        this.peer.on('connection', (conn) => {
-            console.log('📞 Incoming connection from:', conn.peer);
-            this.handleIncomingConnection(conn);
-        });
-
-        this.peer.on('error', (err) => {
-            console.error('❌ PeerJS Error:', err);
-        });
+    // Generate a random 6-character room code
+    generateRoomCode() {
+        return Math.random().toString(36).substring(2, 8).toUpperCase();
     }
 
     // Host a game
-    hostGame(onReady) {
+    async hostGame(onReady) {
         this.isHost = true;
-        this.initialize(onReady);
+        this.roomCode = this.generateRoomCode();
+
+        try {
+            // Create room in database
+            const { data, error } = await supabase
+                .from('game_rooms')
+                .insert([
+                    {
+                        room_code: this.roomCode,
+                        game_state: {}
+                    }
+                ])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            this.roomId = data.id;
+            console.log('✅ Room created:', this.roomCode);
+
+            // Subscribe to room updates
+            this.subscribeToRoom();
+
+            if (onReady) onReady(this.roomCode);
+        } catch (error) {
+            console.error('❌ Error creating room:', error);
+            alert('Failed to create game room. Please try again.');
+        }
     }
 
-    // Join a game with retry logic
-    joinGame(hostId, onConnected) {
+    // Join a game
+    async joinGame(roomCode, onConnected) {
         this.isHost = false;
-        this.initialize(() => {
-            console.log('🔗 Attempting to connect to host:', hostId);
+        this.roomCode = roomCode.toUpperCase();
 
-            let retryCount = 0;
-            const maxRetries = 3;
+        try {
+            // Check if room exists
+            const { data, error } = await supabase
+                .from('game_rooms')
+                .select('*')
+                .eq('room_code', this.roomCode)
+                .single();
 
-            const connectWithRetry = () => {
-                const conn = this.peer.connect(hostId, {
-                    reliable: true, // TCP mode is more reliable for cross-network
-                    serialization: 'json'
-                });
+            if (error || !data) {
+                throw new Error('Room not found');
+            }
 
-                // Set a timeout for connection
-                const connectionTimeout = setTimeout(() => {
-                    if (!conn.open) {
-                        console.warn(`⚠️ Connection attempt ${retryCount + 1} timed out.`);
-                        conn.close();
+            this.roomId = data.id;
+            console.log('✅ Found room:', this.roomCode);
 
-                        if (retryCount < maxRetries) {
-                            retryCount++;
-                            console.log(`🔄 Retrying connection (${retryCount}/${maxRetries})...`);
-                            setTimeout(connectWithRetry, 1000);
-                        } else {
-                            console.error('❌ Connection timeout - could not reach host after retries');
-                            alert('Connection failed: Could not reach host.\n\nPossible reasons:\n- Host ID is incorrect\n- Host is offline\n- Network/firewall blocking connection\n\nTry refreshing and hosting again.');
-                        }
-                    }
-                }, 30000); // 30 second timeout per attempt for TURN relay setup
+            // Subscribe to room updates
+            this.subscribeToRoom();
 
-                conn.on('open', () => {
-                    clearTimeout(connectionTimeout);
-                    console.log('✅ Successfully connected to host!');
-                });
-
-                conn.on('error', (err) => {
-                    console.error('Connection error during attempt:', err);
-                    clearTimeout(connectionTimeout);
-                    if (retryCount < maxRetries) {
-                        retryCount++;
-                        setTimeout(connectWithRetry, 1000);
-                    }
-                });
-
-                this.handleOutgoingConnection(conn, onConnected);
-            };
-
-            connectWithRetry();
-        });
-    }
-
-    // Handle someone connecting to us (Host logic)
-    handleIncomingConnection(conn) {
-        conn.on('open', () => {
-            console.log('Connection opened with peer:', conn.peer);
-            this.connections.push(conn);
-            if (this.callbacks.onPeerConnect) this.callbacks.onPeerConnect(conn.peer);
-        });
-
-        conn.on('data', (data) => {
-            console.log('Received data from peer:', data);
-            if (this.callbacks.onData) this.callbacks.onData(data, conn.peer);
-        });
-
-        conn.on('close', () => {
-            console.log('Peer disconnected:', conn.peer);
-            this.connections = this.connections.filter(c => c.peer !== conn.peer);
-            if (this.callbacks.onPeerDisconnect) this.callbacks.onPeerDisconnect(conn.peer);
-        });
-
-        conn.on('error', (err) => {
-            console.error('Connection error:', err);
-        });
-    }
-
-    // Handle us connecting to someone (Peer logic)
-    handleOutgoingConnection(conn, onConnected) {
-        this.hostConn = conn;
-
-        conn.on('open', () => {
-            console.log('✅ Connected to Host');
             if (onConnected) onConnected();
             if (this.callbacks.onConnectedToHost) this.callbacks.onConnectedToHost();
-        });
-
-        conn.on('data', (data) => {
-            console.log('📨 Received data from Host');
-            if (this.callbacks.onData) this.callbacks.onData(data, 'HOST');
-        });
-
-        conn.on('close', () => {
-            console.warn('⚠️ Disconnected from Host');
-        });
-
-        conn.on('error', (err) => {
-            console.error('❌ Connection error:', err);
-        });
+        } catch (error) {
+            console.error('❌ Error joining room:', error);
+            alert('Failed to join game. Check the room code and try again.');
+        }
     }
 
-    // Send data
-    broadcast(data) {
-        console.log('Broadcasting:', data.type);
-        if (this.isHost) {
-            this.connections.forEach(conn => {
-                if (conn.open) {
-                    conn.send(data);
-                } else {
-                    console.warn('Connection not open for peer:', conn.peer);
+    // Subscribe to room updates
+    subscribeToRoom() {
+        this.channel = supabase
+            .channel(`room:${this.roomCode}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'game_rooms',
+                    filter: `room_code=eq.${this.roomCode}`
+                },
+                (payload) => {
+                    console.log('📨 Received update:', payload.new.game_state);
+                    if (this.callbacks.onData) {
+                        this.callbacks.onData(payload.new.game_state, 'NETWORK');
+                    }
                 }
+            )
+            .subscribe((status) => {
+                console.log('Subscription status:', status);
             });
-        } else {
-            if (this.hostConn && this.hostConn.open) {
-                this.hostConn.send(data);
-            } else {
-                console.warn('Host connection not open');
-            }
+    }
+
+    // Broadcast game state
+    async broadcast(data) {
+        if (!this.roomCode) return;
+
+        try {
+            const { error } = await supabase
+                .from('game_rooms')
+                .update({
+                    game_state: data,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('room_code', this.roomCode);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('❌ Error broadcasting:', error);
         }
     }
 
     // Register callbacks
     on(event, callback) {
         this.callbacks[event] = callback;
+    }
+
+    // Cleanup
+    disconnect() {
+        if (this.channel) {
+            this.channel.unsubscribe();
+        }
     }
 }
