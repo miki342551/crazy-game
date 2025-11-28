@@ -96,7 +96,7 @@ export class NetworkManager {
                             alert('Connection failed: Could not reach host.\n\nPossible reasons:\n- Host ID is incorrect\n- Host is offline\n- Network/firewall blocking connection\n\nTry refreshing and hosting again.');
                         }
                     }
-                }, 10000); // 10 second timeout per attempt
+                }, 30000); // 30 second timeout per attempt for TURN relay setup
 
                 conn.on('open', () => {
                     clearTimeout(connectionTimeout);
