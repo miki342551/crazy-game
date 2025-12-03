@@ -146,6 +146,32 @@ body {
   /* No symbol on back */
 }
 
+.card-top,
+.card-bottom {
+  position: absolute;
+  padding: 0.2em;
+  line-height: 1;
+}
+
+.card-top {
+  top: 0.2em;
+  left: 0.2em;
+}
+
+.card-bottom {
+  bottom: 0.2em;
+  right: 0.2em;
+  transform: rotate(180deg);
+}
+
+.card-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2.5em;
+}
+
 .card.empty-pile {
   background: transparent;
   border: 3px dashed var(--glass-border);

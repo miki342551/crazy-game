@@ -105,6 +105,42 @@ export function playCard(gameState, cardIndex, suitSelection = null) {
 
         // Can only play 2 or Ace of Spades to counter
         if (effect === 'DRAW_2' || effect === 'DRAW_5') {
+            // SUIT VALIDATION RULES:
+            // - Any 2 can counter any 2 (cross-suit allowed for 2s)
+            // - A♠ can ONLY counter spade draw cards (2♠ or A♠)
+            // - To counter A♠, you must play 2♠ or A♠
+
+            const isAceOfSpades = card.rank === 'A' && card.suit === '♠';
+            const activeSuitIsSpades = activeSuit === '♠';
+            const isTwo = card.rank === '2';
+
+            // A♠ can only be used when countering spade draw cards
+            if (isAceOfSpades && !activeSuitIsSpades) {
+                return {
+                    ...gameState,
+                    message: `Ace of Spades can only counter spade draw cards!`
+                };
+            }
+
+            // If trying to counter A♠ with a non-spade card (must be 2♠ or A♠)
+            if (activeSuitIsSpades && !isAceOfSpades && !isTwo) {
+                return {
+                    ...gameState,
+                    message: `To counter A♠, you must play 2♠ or A♠!`
+                };
+            }
+
+            // If playing a 2 (any suit) when active suit is spades, make sure it's 2♠
+            if (isTwo && activeSuitIsSpades && card.suit !== '♠') {
+                return {
+                    ...gameState,
+                    message: `To counter A♠, you must play 2♠!`
+                };
+            }
+
+            // All 2s can counter each other regardless of suit (if not spades)
+            // A♠ validation already handled above
+
             // Counter with another draw card
             const newHand = player.hand.filter((_, i) => i !== cardIndex);
             const newPlayers = [...players];
