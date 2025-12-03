@@ -205,8 +205,7 @@ body {
 }
 
 .cards-container .card {
-  margin-right: -40px;
-  /* Stronger overlap */
+  /* Dynamic margin-right set via inline styles in PlayerHand component */
   transition: margin 0.2s, transform 0.2s;
 }
 
@@ -395,7 +394,7 @@ button:disabled {
   }
 
   .cards-container .card {
-    margin-right: -30px;
+    /* Dynamic margin-right set via inline styles */
     flex-shrink: 0;
     /* Don't shrink cards */
   }
@@ -434,9 +433,8 @@ button:disabled {
     margin: 10px 0;
   }
 
-  .cards-container .card {
-    margin-right: -25px;
-  }
+  /* Dynamic margin-right set via inline styles in PlayerHand component */
+
 
   .info-bar {
     font-size: 0.9em;

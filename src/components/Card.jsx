@@ -7,14 +7,14 @@ const SUIT_COLORS = {
     '♦': 'red',
 };
 
-function Card({ card, onClick, isPlayable }) {
+function Card({ card, onClick, isPlayable, style }) {
     const color = SUIT_COLORS[card.suit];
 
     return (
         <div
             className={`card ${isPlayable ? 'playable' : ''}`}
             onClick={onClick}
-            style={{ color }}
+            style={{ color, ...style }}
         >
             <div className="card-top">{card.rank}{card.suit}</div>
             <div className="card-center">{card.suit}</div>
