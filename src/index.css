@@ -384,6 +384,8 @@ button:disabled {
     margin-bottom: 15px;
     overflow-x: auto;
     /* Allow scrolling if many cards */
+    -webkit-overflow-scrolling: touch;
+    /* Smooth scrolling on iOS */
     flex-wrap: nowrap;
     /* Prevent wrapping on mobile to keep single row */
     justify-content: flex-start;
@@ -391,6 +393,18 @@ button:disabled {
     width: 100%;
     padding-bottom: 10px;
     /* Space for scrollbar */
+    touch-action: pan-x;
+    /* Allow horizontal swipe gestures */
+    overscroll-behavior-x: contain;
+    /* Prevent Telegram Mini App back gesture */
+  }
+
+  .cards-container .card {
+    /* Dynamic margin-right set via inline styles */
+    flex-shrink: 0;
+    /* Don't shrink cards */
+    touch-action: manipulation;
+    /* Allow tap but let swipe bubble to container */
   }
 
   .cards-container .card {
