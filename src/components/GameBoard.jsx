@@ -7,7 +7,6 @@ function GameBoard({ gameState, onPlayCard, onDraw, onSkip, onChainPass, onSelec
     const { players, activePlayerIndex, discardPile, activeSuit, direction, turnState, message } = gameState;
 
     // Identify my player and the active player
-    // If myPlayerId is not provided (e.g. local debug), default to activePlayerIndex or 0
     const localPlayerId = myPlayerId !== null ? myPlayerId : activePlayerIndex;
     const myPlayer = players[localPlayerId];
     const activePlayer = players[activePlayerIndex];
@@ -83,14 +82,27 @@ function GameBoard({ gameState, onPlayCard, onDraw, onSkip, onChainPass, onSelec
             </div>
 
             {/* Show other players */}
-            <div className="other-players">
+            <div className="other-players" style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '20px',
+                flexWrap: 'wrap',
+                marginBottom: '20px'
+            }}>
                 {players.map((p, i) => (
                     i !== localPlayerId && (
-                        <div key={i} className="other-player">
-                            <div className="player-avatar">👤</div>
-                            <div className="player-name">{p.name}</div>
-                            <div className="player-cards">{p.hand.length} cards</div>
-                            {i === activePlayerIndex && <div className="thinking-indicator">Thinking...</div>}
+                        <div key={i} className={`other-player ${i === activePlayerIndex ? 'active' : ''}`} style={{
+                            background: i === activePlayerIndex ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255,255,255,0.1)',
+                            padding: '15px',
+                            borderRadius: '12px',
+                            minWidth: '120px',
+                            textAlign: 'center',
+                            border: i === activePlayerIndex ? '2px solid gold' : '1px solid rgba(255,255,255,0.2)'
+                        }}>
+                            <div className="player-avatar" style={{ fontSize: '2rem' }}>👤</div>
+                            <div className="player-name" style={{ fontWeight: 'bold', margin: '5px 0' }}>{p.name}</div>
+                            <div className="player-cards" style={{ color: '#aaa' }}>{p.hand.length} cards</div>
+                            {i === activePlayerIndex && <div className="thinking-indicator" style={{ color: 'gold', marginTop: '5px' }}>Thinking...</div>}
                         </div>
                     )
                 ))}

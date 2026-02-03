@@ -12,7 +12,8 @@ function App() {
   const [suitSelection, setSuitSelection] = useState(null);
   const [inLobby, setInLobby] = useState(true);
   const [isHost, setIsHost] = useState(false);
-  const [myPlayerId, setMyPlayerId] = useState(null); // 0 for Host, 1 for Peer
+  const [myPlayerId, setMyPlayerId] = useState(null);
+  const [lobbyPlayers, setLobbyPlayers] = useState([]); // NEW: Track players in lobby
 
   const networkManager = useRef(new NetworkManager());
 
@@ -21,6 +22,7 @@ function App() {
   const handleHostGame = (onReady) => {
     setIsHost(true);
     setMyPlayerId(0);
+    setLobbyPlayers(['Host']); // Host is the first player
     networkManager.current.hostGame((id) => {
       onReady(id);
     });
@@ -28,35 +30,62 @@ function App() {
 
   const handleJoinGame = (hostId) => {
     setIsHost(false);
-    setMyPlayerId(1);
+    // myPlayerId will be assigned by the host via PLAYER_LIST_UPDATE
     networkManager.current.joinGame(hostId, () => {
-      setInLobby(false);
+      // Connected, but don't leave lobby yet - wait for game start
+    });
+  };
+
+  // NEW: Handle "Start Game" button click (Host only)
+  const handleStartGame = () => {
+    if (!isHost || lobbyPlayers.length < 2) return;
+
+    const initialGame = initializeGame(lobbyPlayers);
+    setGameState(initialGame);
+    setInLobby(false);
+
+    // Broadcast GAME_START to all players
+    networkManager.current.broadcast({
+      type: 'GAME_START',
+      state: initialGame,
+      players: lobbyPlayers
     });
   };
 
   // Register network listeners with access to fresh state
   useEffect(() => {
-    networkManager.current.on('onPeerConnect', (peerId) => {
-      setGameState(prevState => {
-        if (prevState) {
-          console.log('Peer connected to running game. Syncing...');
-          return { ...prevState };
-        } else {
-          console.log('Peer connected. Starting new game...');
-          const initialGame = initializeGame(['Host', 'Guest']);
-          setInLobby(false);
-          return initialGame;
-        }
-      });
+    // NEW: Listen for player list updates from the host
+    networkManager.current.on('onPlayerListUpdate', (players) => {
+      setLobbyPlayers(players);
+      // Update myPlayerId from networkManager for guests
+      if (!isHost && networkManager.current.myPlayerId !== null) {
+        setMyPlayerId(networkManager.current.myPlayerId);
+      }
+    });
+
+    networkManager.current.on('onPeerConnect', (peerName) => {
+      console.log(`Peer connected: ${peerName}`);
+      // Host updates lobbyPlayers via onPlayerListUpdate callback
     });
 
     networkManager.current.on('onData', (data) => {
       handleNetworkData(data);
     });
-  }); // Run on every render to keep closures fresh. 
-  // NetworkManager.on overwrites the callback, so this is safe and correct for this implementation.
+  }); // Run on every render to keep closures fresh.
 
   const handleNetworkData = (data) => {
+    // NEW: Handle GAME_START from Host
+    if (data.type === 'GAME_START') {
+      setGameState(data.state);
+      setLobbyPlayers(data.players);
+      // Ensure myPlayerId is set for guests
+      if (!isHost && networkManager.current.myPlayerId !== null) {
+        setMyPlayerId(networkManager.current.myPlayerId);
+      }
+      setInLobby(false);
+      return;
+    }
+
     if (data.type === 'STATE_UPDATE') {
       setGameState(data.state);
     } else if (data.type === 'ACTION') {
@@ -106,7 +135,8 @@ function App() {
             newState = resolveSuitSelection(prevState, payload.suit);
             break;
           case 'RESTART':
-            newState = initializeGame(['Host', 'Guest']);
+            // Use lobbyPlayers for restart
+            newState = initializeGame(lobbyPlayers.length > 0 ? lobbyPlayers : ['Host', 'Guest']);
             break;
           default:
             break;
@@ -139,16 +169,6 @@ function App() {
     // Check turn locally first to prevent spam (optional but good UX)
     if (gameState.activePlayerIndex !== myPlayerId) return;
 
-    // If suit selection needed, we might need to handle that.
-    // The current logic in GameBoard/App handles suit selection via state.
-    // If we need to select suit, we do it locally then send action?
-    // Or we send PLAY_CARD, and if it returns SUIT_SELECTION, we wait?
-
-    // For simplicity: If we have a suit selection pending in UI, send it.
-    // But `playCard` logic handles the transition.
-
-    // Actually, `playCard` takes `suitSelection` as arg.
-    // So we send it if we have it.
     sendAction('PLAY_CARD', { cardIndex, suitSelection });
     setSuitSelection(null);
   };
@@ -179,7 +199,15 @@ function App() {
   };
 
   if (inLobby) {
-    return <Lobby onHost={handleHostGame} onJoin={handleJoinGame} />;
+    return (
+      <Lobby
+        onHost={handleHostGame}
+        onJoin={handleJoinGame}
+        onStartGame={handleStartGame}
+        players={lobbyPlayers}
+        isHost={isHost}
+      />
+    );
   }
 
   if (!gameState) return <div style={{ color: 'white' }}>Waiting for game state...</div>;
@@ -187,12 +215,15 @@ function App() {
   // Determine if it's my turn for UI indicators (optional, GameBoard might handle it)
   const isMyTurn = gameState.activePlayerIndex === myPlayerId;
 
+  // Find my player name for display
+  const myPlayerName = gameState.players[myPlayerId]?.name || (myPlayerId === 0 ? 'Host' : `Player ${myPlayerId}`);
+
   return (
     <div className="app">
       <div className="header">
         <h1>Crazy Remix</h1>
         <div className="player-info">
-          You are: {myPlayerId === 0 ? 'Host' : 'Guest'}
+          You are: {myPlayerName}
         </div>
         <button onClick={() => setShowRules(true)}>Rules</button>
         <button onClick={onRestart}>Restart</button>
@@ -211,7 +242,7 @@ function App() {
           onSkip={onSkip}
           onChainPass={onChainPass}
           onSelectSuit={onSelectSuit}
-          myPlayerId={myPlayerId} // Pass this down if GameBoard needs to know which hand is "mine"
+          myPlayerId={myPlayerId}
         />
       )}
 

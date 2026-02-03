@@ -6,11 +6,14 @@ export class NetworkManager {
         this.roomId = null;
         this.channel = null;
         this.isHost = false;
+        this.myPlayerId = null; // Assigned by host
+        this.connectedPlayers = []; // List of player names in the lobby
         this.callbacks = {
             onData: () => { },
             onPeerConnect: () => { },
             onPeerDisconnect: () => { },
             onConnectedToHost: () => { },
+            onPlayerListUpdate: () => { }, // New callback for lobby updates
         };
     }
 
@@ -22,7 +25,9 @@ export class NetworkManager {
     // Host a game
     async hostGame(onReady) {
         this.isHost = true;
+        this.myPlayerId = 0; // Host is always player 0
         this.roomCode = this.generateRoomCode();
+        this.connectedPlayers = ['Host']; // Host is the first player
 
         try {
             // Create room in database with WAITING status
@@ -48,7 +53,7 @@ export class NetworkManager {
             if (onReady) onReady(this.roomCode);
         } catch (error) {
             console.error('❌ Error creating room:', error);
-            alert('Failed to create game room. Please try again.');
+            alert(`Failed to create game room: ${error.message || error.details || 'Unknown error'}`);
         }
     }
 
@@ -75,6 +80,17 @@ export class NetworkManager {
             // Subscribe to room updates
             this.subscribeToRoom();
 
+            // If there's an existing state in the DB, load it immediately
+            if (data.game_state && Object.keys(data.game_state).length > 0) {
+                console.log('📦 Loading initial state from DB...');
+                if (this.callbacks.onData) {
+                    this.callbacks.onData({
+                        type: 'STATE_UPDATE',
+                        state: data.game_state
+                    }, 'NETWORK');
+                }
+            }
+
             if (onConnected) onConnected();
             if (this.callbacks.onConnectedToHost) this.callbacks.onConnectedToHost();
         } catch (error) {
@@ -98,26 +114,65 @@ export class NetworkManager {
                     const msg = payload.payload;
                     console.log('⚡ Received broadcast:', msg.type);
 
-                    // Handle Handshake: Guest asks for state, Host sends it
-                    if (this.isHost && msg.type === 'JOIN_REQUEST') {
-                        console.log('Guest requested join. Sending full state...');
-                        if (this.callbacks.onPeerConnect) this.callbacks.onPeerConnect('Guest');
-                        // We rely on App.jsx to trigger the state broadcast after onPeerConnect
-                        // But we can also force a sync if we have the latest state stored locally?
-                        // App.jsx will see onPeerConnect and likely broadcast.
-                        return;
-                    }
+                    // --- HOST LOGIC ---
+                    if (this.isHost) {
+                        if (msg.type === 'JOIN_REQUEST') {
+                            // A new player wants to join
+                            const guestName = msg.playerName || `Player ${this.connectedPlayers.length + 1}`;
 
-                    // Handle Handshake: Guest receives state
-                    if (!this.isHost && msg.type === 'STATE_UPDATE') {
-                        // If we were waiting for connection, this confirms it
-                        if (this.callbacks.onConnectedToHost) {
-                            this.callbacks.onConnectedToHost();
-                            // Clear callback so we don't trigger it again
-                            this.callbacks.onConnectedToHost = null;
+                            // Check for max players (4)
+                            if (this.connectedPlayers.length >= 4) {
+                                console.log('Room is full, ignoring join request.');
+                                return;
+                            }
+
+                            const newPlayerId = this.connectedPlayers.length;
+                            this.connectedPlayers.push(guestName);
+                            console.log(`Player ${guestName} joined with ID ${newPlayerId}`);
+
+                            // Broadcast the updated player list to everyone
+                            this.sendBroadcast({
+                                type: 'PLAYER_LIST_UPDATE',
+                                players: this.connectedPlayers,
+                                newPlayerId: newPlayerId,
+                                newPlayerName: guestName
+                            });
+
+                            if (this.callbacks.onPlayerListUpdate) {
+                                this.callbacks.onPlayerListUpdate(this.connectedPlayers);
+                            }
+                            if (this.callbacks.onPeerConnect) {
+                                this.callbacks.onPeerConnect(guestName);
+                            }
+                            return;
                         }
                     }
 
+                    // --- GUEST LOGIC ---
+                    if (!this.isHost) {
+                        if (msg.type === 'PLAYER_LIST_UPDATE') {
+                            this.connectedPlayers = msg.players;
+                            // If we just joined, find our ID
+                            if (this.myPlayerId === null && msg.newPlayerName) {
+                                // Check if the new player is us (simple heuristic: we requested last)
+                                this.myPlayerId = msg.newPlayerId;
+                                console.log(`Assigned player ID: ${this.myPlayerId}`);
+                            }
+                            if (this.callbacks.onPlayerListUpdate) {
+                                this.callbacks.onPlayerListUpdate(this.connectedPlayers);
+                            }
+                            return;
+                        }
+                        if (msg.type === 'STATE_UPDATE') {
+                            // Game state sync during gameplay
+                            if (this.callbacks.onConnectedToHost) {
+                                this.callbacks.onConnectedToHost();
+                                this.callbacks.onConnectedToHost = null;
+                            }
+                        }
+                    }
+
+                    // --- COMMON: Pass to App.jsx for game logic ---
                     if (this.callbacks.onData) {
                         this.callbacks.onData(msg, 'NETWORK');
                     }
@@ -128,15 +183,34 @@ export class NetworkManager {
                 if (status === 'SUBSCRIBED') {
                     // If we are joining, ask for state
                     if (!this.isHost) {
-                        this.sendBroadcast({ type: 'JOIN_REQUEST' });
+                        this.sendBroadcast({ type: 'JOIN_REQUEST', playerName: `Player ${Date.now() % 1000}` });
                     }
                 }
             });
     }
 
-    // Broadcast game state (Fast Ephemeral Mode)
+    // Broadcast game state (Fast Ephemeral Mode + DB Persistence)
     async broadcast(data) {
         if (!this.roomCode || !this.channel) return;
+
+        // --- DB PERSISTENCE (Host Only) ---
+        // Save state to database for robustness and potential reconnection
+        if (this.isHost && (data.type === 'STATE_UPDATE' || data.type === 'GAME_START')) {
+            try {
+                const { error } = await supabase
+                    .from('game_rooms')
+                    .update({
+                        game_state: data.state,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', this.roomId);
+
+                if (error) console.error('❌ Error saving state to DB:', error);
+            } catch (err) {
+                console.error('❌ DB Update failed:', err);
+            }
+        }
+
         this.sendBroadcast(data);
     }
 

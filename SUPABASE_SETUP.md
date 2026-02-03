@@ -24,18 +24,34 @@ CREATE INDEX IF NOT EXISTS idx_room_code ON game_rooms(room_code);
 ALTER TABLE game_rooms ENABLE ROW LEVEL SECURITY;
 
 -- Allow anyone to read and write (for multiplayer game)
+DROP POLICY IF EXISTS "Enable read access for all users" ON game_rooms;
 CREATE POLICY "Enable read access for all users" ON game_rooms
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Enable insert access for all users" ON game_rooms;
 CREATE POLICY "Enable insert access for all users" ON game_rooms
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Enable update access for all users" ON game_rooms;
 CREATE POLICY "Enable update access for all users" ON game_rooms
   FOR UPDATE USING (true);
 
--- Enable realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE game_rooms;
+-- Enable realtime (CRITICAL for multiplayer sync)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'game_rooms'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE game_rooms;
+  END IF;
+END $$;
 ```
+
+> [!IMPORTANT]
+> Ensure **"Realtime"** is enabled for the `game_rooms` table in your Supabase Dashboard (Database -> Replication -> supabase_realtime -> Source).
 
 5. Click **"Run"** (or press Ctrl+Enter)
 6. You should see "Success. No rows returned"
